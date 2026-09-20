@@ -1,0 +1,8 @@
+# This package's own composition layer. `dsh plugin --profile <name> add` appends
+# a dependency that declares `dsh.bundle` to that profile's layer stack, so
+# installing this package mounts the browser row below without hand-editing the
+# profile's cordis.patch.yml. The node half serves the packaged wallpaper, so no
+# deployment-side asset placement is needed either.
+- insert:
+    - id: ui-arknights-background
+      name: '@deepseek-ai/dsh-client-ui-arknights-background'
