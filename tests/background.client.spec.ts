@@ -40,21 +40,60 @@ describe('arknights background stylesheet', () => {
   })
 
   it('lifts the full-viewport shell surfaces so the wallpaper shows through', () => {
-    expect(css).toContain(":global(#root) > [data-slot='root'] > div")
+    expect(css).toContain("#root > [data-slot='root'] > div")
     expect(css).toContain('background: transparent !important')
     expect(css).toContain('--dsw-specific-sidebar-fill')
+    // The shell renders the conversation slot as `main.conversation`, so the
+    // suffix spelling is the one that actually matches; the plain key stays
+    // for compositions that mount it under its own name.
     expect(css).toContain("[data-slot='conversation'] > [data-phase]")
+    expect(css).toContain("[data-slot$='.conversation'] > [data-phase]")
     expect(css).toContain('[data-composer-seat]')
   })
 
+  it('keeps every selector plain CSS, since the sheet is injected at runtime', () => {
+    // `:global(...)` is a bundler directive: the plugin's sheet is compiled
+    // into lib/client.js ahead of Vite's CSS-modules pass, so any `:global()`
+    // surviving into the bundle is an unknown pseudo-class the browser drops —
+    // taking the whole rule (and the transparency it carries) with it.
+    const selectors = css.replace(/\/\*[\s\S]*?\*\//g, '')
+    expect(selectors).not.toContain(':global(')
+  })
+
+  it('paints the wallpaper on the root element too, so no wrapper can hide it', () => {
+    const htmlBlock = /(?:^|\n)html\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(htmlBlock).toContain("url('/arknights-wallpaper.webp')")
+    expect(htmlBlock).toContain('fixed')
+  })
+
+  it('lifts the docked right-sidebar panes (the code view) off the wallpaper', () => {
+    const paneBlock = /\[data-dockkit-host='dock'\]\s*>\s*\[data-dockkit-pane\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(paneBlock).toContain('background: transparent !important')
+    // Only docked panes are lifted: floating panes keep their opaque fill.
+    expect(paneBlock).not.toContain('float')
+  })
+
+  it('frosts the sidebar code preview over the wallpaper', () => {
+    const codeBlock = /\[data-dockkit-pane\]\s*:where\(\[data-code-preview\]\)\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(codeBlock).toContain('linear-gradient(')
+    expect(codeBlock).toContain('backdrop-filter: blur(12px)')
+    expect(css).toContain('[data-dockkit-pane] :where([data-code-preview]) :where(pre.shiki)')
+  })
+
+  it('frosts an open-but-empty docked pane instead of leaving it opaque', () => {
+    const emptyBlock = /\[data-dockkit-empty\]\s*\{([^}]*)\}/.exec(css)?.[1] ?? ''
+    expect(emptyBlock).toContain('linear-gradient(')
+    expect(emptyBlock).toContain('backdrop-filter: blur(12px)')
+  })
+
   it('frosts the coding surfaces over the wallpaper with a gradient', () => {
-    for (const selector of [':global(.md-code-block)', '[data-terminal]', '[data-read]', '[data-diff]', '[data-search]', '[data-web]']) {
+    for (const selector of ['.md-code-block', '[data-terminal]', '[data-read]', '[data-diff]', '[data-search]', '[data-web]']) {
       expect(css).toContain(selector)
     }
     expect(css).toContain('backdrop-filter: blur(12px)')
     expect(css).toContain('--dsl-code-block-banner-background-color')
-    expect(css).toContain(':global(.md-code-block) :where(pre)')
-    expect(css).toContain(':global(.md-code-block) :where(pre.shiki)')
+    expect(css).toContain('.md-code-block :where(pre)')
+    expect(css).toContain('.md-code-block :where(pre.shiki)')
   })
 })
 

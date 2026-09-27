@@ -2,16 +2,20 @@
  * Arknights wallpaper background for the dsh web shell.
  *
  * The sheet is a global paint layer (no hashed classes): the wallpaper is
- * painted on `body` under two gradient veils, a `body::before` aurora drifts
- * slowly above it, and the full-viewport shell surfaces (the AppFrame and the
- * conversation column) turn transparent so the art shows through. The coding
- * surfaces — markdown code fences and the terminal/file/diff/search/web
- * blocks — become frosted glass over the wallpaper (translucent gradient +
- * backdrop blur). Only cards, dialogs, and the details panel keep their own
- * opaque token backgrounds, so dense UI stays readable.
+ * painted on `html` and `body` under two gradient veils, a `body::before`
+ * aurora drifts slowly above it, and the full-viewport shell surfaces (the
+ * AppFrame, the conversation column, and every DOCKED dockkit tab host) turn
+ * transparent so the art shows through. The coding surfaces — markdown code
+ * fences, the terminal/file/diff/search/web blocks, and the right sidebar's
+ * code/frosted preview panes — become frosted glass over the wallpaper
+ * (translucent gradient + backdrop blur). Only floating panels, cards, and
+ * dialogs keep their own opaque token backgrounds, so dense UI stays
+ * readable.
  *
- * The wallpaper file is served from the built frontend (`apps/web/public`,
- * copied into `dist/` by the Vite build) at `/arknights-wallpaper.webp`.
+ * The wallpaper file is served by the plugin's own node half on
+ * `/arknights-wallpaper.webp` (an exact route over the packaged
+ * `arknights-wallpaper.webp`), so the paint does not depend on the frontend
+ * dist carrying a copy.
  *
  * Selector notes (they track the shell DOM, not hashed class names):
  * - Every slot render is wrapped in a `[data-slot="<key>"]` anchor with
@@ -19,9 +23,31 @@
  *   addressable. The AppFrame is therefore
  *   `#root > [data-slot="root"] > div`; the conversation column root
  *   (`ConversationRoot`, which always carries the `data-phase` attribute)
- *   sits inside `[data-slot="conversation"]`. `:global()` keeps the mount id
- *   out of CSS-module hashing; attribute selectors are never hashed.
+ *   sits inside the conversation slot anchor, which the shell keys as
+ *   `main.conversation` (hence the `$=` suffix match next to the literal key).
+ *   Attribute selectors are never hashed, so they survive every pipeline this
+ *   sheet passes through.
+ * - NO `:global()` wrappers: that syntax is a bundler directive, and this
+ *   sheet is compiled into the bundle AHEAD of time — Vite's CSS-modules pass
+ *   never sees it — so `:global(...)` would reach the browser verbatim, where
+ *   it is an unknown pseudo-class and the whole rule is dropped. Every rule
+ *   below is therefore plain CSS (the sheet has no local classes to scope).
+ * - The right sidebar (files, code/text/PDF/HTML document preview, terminal)
+ *   is a dockkit tree: every pane's `<section>` carries
+ *   `data-dockkit-host="dock"` (a floating pane carries `"float"` instead),
+ *   and dockkit paints that box with the opaque `--dsw-alias-bg-base` token —
+ *   which is what hid the wallpaper behind the code pane. `[data-dockkit-host='dock']`
+ *   is the literal-attribute equivalent of dockkit's own `.tabHost:not(.float)`.
  */
+/* The wallpaper is painted on the root element as well as on `body`: the root
+   box is the one box that can never be covered by an app surface, so the art
+   survives any full-viewport wrapper a future shell adds. `fixed` keeps the
+   art pinned to the viewport while a pane scrolls; HTML ignores the property,
+   so a single declaration is safe. */
+html {
+  background: url('/arknights-wallpaper.webp') center / cover no-repeat fixed;
+}
+
 body {
   /* Layer 1 (top): vertical readability veil + art-matched shading — dark
      blue-gray at the top (the art's sky), a light center, warm dark at the
@@ -71,7 +97,7 @@ body::before {
    wrapper (a `[data-slot]` div with `display: contents`, which has no box of
    its own): transparent, so nothing above the wallpaper paints an opaque
    layer. */
-:global(#root) > div {
+#root > div {
   background: transparent !important;
 }
 
@@ -81,7 +107,7 @@ body::before {
    what covers the wallpaper, and lifting it is what lets the art show
    through the whole app. The sidebar keeps a translucent dark gradient fill
    via its token so rail content stays legible. */
-:global(#root) > [data-slot='root'] > div {
+#root > [data-slot='root'] > div {
   background: transparent !important;
   --dsw-specific-sidebar-fill: linear-gradient(
     180deg,
@@ -93,8 +119,13 @@ body::before {
 /* The conversation column surface: the ConversationRoot (always carrying the
    `data-phase` attribute) sits inside the conversation slot anchor, and its
    opaque base token is lifted so the chat pane becomes a window onto the
-   wallpaper; the veil gradient above does the readability work. */
-[data-slot='conversation'] > [data-phase] {
+   wallpaper; the veil gradient above does the readability work. The shell
+   renders that slot as `[data-slot="main.conversation"]` inside the main
+   panel anchor, so both spellings are matched: an unmatched slot key would
+   leave the whole centre column opaque, which is exactly the failure this
+   sheet exists to prevent. */
+[data-slot='conversation'] > [data-phase],
+[data-slot$='.conversation'] > [data-phase] {
   background: transparent !important;
 }
 
@@ -105,13 +136,53 @@ body::before {
   background: transparent !important;
 }
 
+/* ── right sidebar: the code / document / terminal panes ─────────────────────
+   The docked dockkit pane (`data-dockkit-host="dock"`, the mount every files,
+   document-preview, and terminal tab renders into) owns the opaque
+   `--dsw-alias-bg-base` fill. That one box is what covered the wallpaper when
+   a file was open, i.e. the coding pane. It is lifted to transparent, so the
+   tab body's own surfaces decide what shows (the files tree is transparent
+   already, the code preview puts its own frost up). A floating pane
+   (`data-dockkit-host="float"`) is a raised surface and deliberately keeps its
+   opaque fill, as do dialogs and cards. */
+[data-dockkit-host='dock'] > [data-dockkit-pane] {
+  background: transparent !important;
+}
+
+/* An open-but-empty dockkit pane — the sidebar opened before any tab is
+   selected — paints the same opaque base fill as a pane host. Frosted here
+   rather than left transparent: a fully open right column of finished
+   wallpaper is harder to read a drop target against than the quiet plate the
+   rest of the sidebar keeps. */
+[data-dockkit-empty] {
+  background:
+    linear-gradient(180deg, rgb(10 14 22 / 62%) 0%, rgb(9 12 19 / 48%) 100%) !important;
+  backdrop-filter: blur(12px);
+}
+
+/* The code preview pane (the scrollport the source sits in) becomes the same
+   frosted glass the chat's code fences use — a translucent gradient fill plus
+   a backdrop blur — so the wallpaper reads through the editor while the
+   source stays legible. `CodeBody` points `--dsl-code-block-background` at
+   transparent, so the shiki plate is dropped here instead of darkening the
+   frost twice. */
+[data-dockkit-pane] :where([data-code-preview]) {
+  background:
+    linear-gradient(180deg, rgb(10 14 22 / 78%) 0%, rgb(8 11 17 / 64%) 100%) !important;
+  backdrop-filter: blur(12px);
+}
+
+[data-dockkit-pane] :where([data-code-preview]) :where(pre),
+[data-dockkit-pane] :where([data-code-preview]) :where(pre.shiki) {
+  background: transparent !important;
+}
+
 /* Code surfaces: the coding blocks (markdown fences, terminal, file-read,
    diff, search, and web cards) keep solid token fills by default; here they
    become frosted glass over the wallpaper — a translucent gradient fill plus
    a backdrop blur, so the art and the veil show through while code text
-   stays readable. `:global()` keeps the `md-code-block` class out of
-   CSS-module hashing. */
-:global(.md-code-block),
+   stays readable. */
+.md-code-block,
 [data-terminal],
 [data-read],
 [data-diff],
@@ -126,16 +197,16 @@ body::before {
    letting the frosted wrapper show the wallpaper behind. The banner token is
    re-pointed to a translucent dark so the language label and copy button keep
    a quiet plate. */
-:global(.md-code-block) {
+.md-code-block {
   --dsl-code-block-banner-background-color: rgb(10 14 22 / 70%);
 }
 
-:global(.md-code-block) > div:first-child {
+.md-code-block > div:first-child {
   background-color: transparent !important;
 }
 
-:global(.md-code-block) :where(pre),
-:global(.md-code-block) :where(pre.shiki),
+.md-code-block :where(pre),
+.md-code-block :where(pre.shiki),
 [data-terminal] :where(pre) {
   background: transparent !important;
 }

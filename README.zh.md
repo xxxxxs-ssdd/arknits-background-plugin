@@ -4,9 +4,9 @@
 
 Web 界面背景插件：将明日方舟壁纸绘制到 Web 界面之上。客户端包的整个效果就是一张样式表（`src/client/arknights.module.css`），在包物化时以 `<style data-plugin>` 标签注入；壁纸本身由 Node 半边持有——它注册一条精确路由 `/arknights-wallpaper.webp`，读取随包分发的 `arknights-wallpaper.webp`，因此效果不再依赖部署的前端构建产物。包还自带组合层（`dsh.bundle` + `cordis.patch.yml`），`dsh plugin --profile web add <包>` 即可挂载该浏览器行，无需手改 profile 补丁。
 
-样式表把壁纸绘制在 `body` 上，其下叠加两层渐变——一层纵向可读性纱幕（色标跟随画面本身的明暗：顶部深蓝灰的天空、中部较亮、底部暖色深色前景）加一层径向暗角——而 `body::before` 的极光层（两团柔和色光）在壁纸之上缓慢旋转缩放（`prefers-reduced-motion` 下禁用）。全视口的界面表面被"揭开"以露出壁纸：每个槽输出都被一层 `[data-slot="<key>"]` 锚点包裹（`display: contents`），因此 AppFrame（`#root > [data-slot="root"] > div`）变为透明，会话列根节点（`[data-slot="conversation"] > [data-phase]`）同样被揭开，输入席的底部渐隐带也被清空；侧边栏通过其 `--dsw-specific-sidebar-fill` 令牌保留半透明深色渐变。编码表面——markdown 代码围栏（`.md-code-block`）与终端/读文件/差异/搜索/网页等工具输出块（`[data-terminal]`、`[data-read]`、`[data-diff]`、`[data-search]`、`[data-web]`）——变成壁纸之上的"毛玻璃"：半透明渐变填充加 12px 背景模糊，围栏头部与内部 `pre` 改为透明，代码保持可读的同时画面透出。卡片、对话框与详情面板仍保留各自的不透明令牌背景，密集界面保持清晰。
+样式表把壁纸绘制在 `html` 与 `body` 上，其下叠加两层渐变——一层纵向可读性纱幕（色标跟随画面本身的明暗：顶部深蓝灰的天空、中部较亮、底部暖色深色前景）加一层径向暗角——而 `body::before` 的极光层（两团柔和色光）在壁纸之上缓慢旋转缩放（`prefers-reduced-motion` 下禁用）。全视口的界面表面被"揭开"以露出壁纸：每个槽输出都被一层 `[data-slot="<key>"]` 锚点包裹（`display: contents`），因此 AppFrame（`#root > [data-slot="root"] > div`）变为透明，会话列根节点（`[data-slot="conversation"] > [data-phase]`）同样被揭开，输入席的底部渐隐带也被清空；侧边栏通过其 `--dsw-specific-sidebar-fill` 令牌保留半透明深色渐变。右侧栏是 dockkit 面板树，停靠面板的盒子带着不透明底色令牌——打开文件时正是它盖住了壁纸——因此 `[data-dockkit-host='dock'] > [data-dockkit-pane]` 被揭开为透明，而浮动面板保持不透明。编码表面——markdown 代码围栏（`.md-code-block`）、终端/读文件/差异/搜索/网页等工具输出块（`[data-terminal]`、`[data-read]`、`[data-diff]`、`[data-search]`、`[data-web]`）以及侧栏代码预览（`[data-code-preview]`）——变成壁纸之上的"毛玻璃"：半透明渐变填充加 12px 背景模糊，围栏头部与内部 `pre` 改为透明，代码保持可读的同时画面透出。卡片、对话框与浮动面板仍保留各自的不透明令牌背景，密集界面保持清晰。
 
-界面选择器追踪的是槽系统 DOM 而非哈希后的类名（样式表内有说明）：每个槽输出由 `[data-slot="<key>]` 包装层锚定，AppFrame 是其 `> div`，`[data-phase]` 是会话列根节点始终携带的属性。二者均由本包测试断言。
+界面选择器追踪的是槽系统 DOM 而非哈希后的类名（样式表内有说明）：每个槽输出由 `[data-slot="<key>"]` 包装层锚定，AppFrame 是其 `> div`，`[data-phase]` 是会话列根节点始终携带的属性（外壳把该槽键作 `main.conversation`，因此样式表除字面键外还用后缀匹配）。二者均由本包测试断言。样式表内没有任何 `:global()` 包裹：本插件的样式表在 Vite 的 CSS Modules 处理**之前**就被编译进 bundle，`:global(...)` 会原样到达浏览器，属于未知伪类，整条规则随之失效 —— 这正是此前透明规则静默失效、编码界面看不到壁纸的原因。
 
 ## Model Experience
 

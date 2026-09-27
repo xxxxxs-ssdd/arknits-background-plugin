@@ -66,6 +66,30 @@ dsh-client-ui-arknights-background/
    ```
 5. 重启 `dsh web`，刷新浏览器。
 
+## 改完源码后怎么重新部署（本次修复使用的流程）
+
+浏览器加载的是 profile 里**已构建的** `lib/client.js`，不是源码：改 `src/` 不会自动生效。
+
+1. 改源码（主要就是 `src/client/arknights.module.css`）。
+2. 重新构建客户端产物 —— 样式表由构建管线（tsdown + lightningcss）编译进 `lib/client.js`；
+   工作区里可以直接运行 `node ../rebuild-client-css.mjs`（按同一管线重新编译 CSS 并更新产物），
+   或者在 checkout 里执行 `pnpm --filter @deepseek-ai/dsh-client-ui-arknights-background run bundle`。
+3. 把产物写进 profile 的安装目录（**这一步最容易漏**，插件行加载的是它）：
+
+   ```powershell
+   Copy-Item .\lib\client.js `
+     "$env:USERPROFILE\.dsh\profiles\web\node_modules\@deepseek-ai\dsh-client-ui-arknights-background\lib\client.js" -Force
+   ```
+
+4. 刷新浏览器即可生效（客户端 bundle 每次加载都会带 `&rev=` 重新取；Node 半边未改时无需重启 `dsh web`）。
+
+> 本次修复的三个坑（都会让壁纸完全不显示）：
+> 1. **`:global(...)` 选择器在运行时被浏览器整条丢弃** —— 该语法只在打包阶段（Vite CSS Modules）被识别，而本插件的样式表是在打包阶段**之前**就编译进 `lib/client.js` 的，所以 `:global(...)` 原样到达浏览器，属于未知伪类，整条规则作废。样式表已全部改为普通选择器。
+> 2. **对话列的槽键是 `main.conversation`**，原来只写了 `[data-slot="conversation"]`，于是中间整列仍是不透明的 `--dsw-alias-bg-base`；现在同时匹配字面键与 `$='.conversation'` 后缀。
+> 3. **右侧栏（文件 / 代码预览 / 终端）的停靠面板带不透明底色** —— dockkit 的 `.tabHost:not(.float)` 画 `--dsw-alias-bg-base`，即"编码界面"里盖住壁纸的那一层；现在 `[data-dockkit-host='dock'] > [data-dockkit-pane]` 透明，代码预览改用聊天里同样的毛玻璃（半透明渐变 + 12px 模糊），浮动面板与对话框仍保持不透明。
+
+修复后在右侧栏打开源码/文档预览的效果见 `docs/code-pane-over-wallpaper.png`（壁纸透出、代码块为毛玻璃、文字仍可读）。
+
 ## 移除插件
 
 - 安装版：`dsh plugin --profile web remove @deepseek-ai/dsh-client-ui-arknights-background`，然后重启；壁纸路由随该行一起卸载。
